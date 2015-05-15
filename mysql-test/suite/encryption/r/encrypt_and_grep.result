@@ -21,7 +21,7 @@ SET GLOBAL innodb_encrypt_tables = off;
 SET GLOBAL innodb_encryption_threads = 4;
 # Wait max 10 min for key encryption threads to decrypt all space
 # t1 yes on expecting NOT FOUND
-NOT FOUND /foobar/ in t1.ibd
+FOUND /foobar/ in t1.ibd
 # t2 ... on expecting FOUND
 FOUND /temp/ in t2.ibd
 # t3 no  on expecting FOUND
@@ -29,7 +29,7 @@ FOUND /dummy/ in t3.ibd
 # ibdata1 expecting NOT FOUND
 NOT FOUND /foobar/ in ibdata1
 # ibdata1 expecting NOT FOUND
-NOT FOUND /temp/ in ibdata1
+FOUND /temp/ in ibdata1
 # Now turn on encryption and wait for threads to encrypt all spaces
 SET GLOBAL innodb_encryption_threads = 4;
 SET GLOBAL innodb_encrypt_tables = on;

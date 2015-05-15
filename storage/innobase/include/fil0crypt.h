@@ -94,7 +94,6 @@ struct fil_space_crypt_struct
 	ib_mutex_t mutex;   // mutex protecting following variables
 	bool closing;	    // is tablespace being closed
 	fil_space_rotate_state_t rotate_state;
-	ulint space;
 
 	uint iv_length;	    // length of IV
 	byte iv[1];	    // IV-data
