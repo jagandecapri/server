@@ -17820,7 +17820,7 @@ Update the system variable innodb_encryption_threads */
 static
 void
 innodb_encryption_threads_update(
-/*=========================*/
+/*=============================*/
 	THD*				thd,	/*!< in: thread handle */
 	struct st_mysql_sys_var*	var,	/*!< in: pointer to
 						system variable */
@@ -17837,7 +17837,7 @@ Update the system variable innodb_encryption_rotate_key_age */
 static
 void
 innodb_encryption_rotate_key_age_update(
-/*=========================*/
+/*====================================*/
 	THD*				thd,	/*!< in: thread handle */
 	struct st_mysql_sys_var*	var,	/*!< in: pointer to
 						system variable */
@@ -17854,7 +17854,7 @@ Update the system variable innodb_encryption_rotation_iops */
 static
 void
 innodb_encryption_rotation_iops_update(
-/*=========================*/
+/*===================================*/
 	THD*				thd,	/*!< in: thread handle */
 	struct st_mysql_sys_var*	var,	/*!< in: pointer to
 						system variable */
@@ -17864,6 +17864,27 @@ innodb_encryption_rotation_iops_update(
 						from check function */
 {
 	fil_crypt_set_rotation_iops(*static_cast<const uint*>(save));
+
+
+}
+
+/******************************************************************
+Update the system variable innodb_encrypt_tables*/
+static
+void
+innodb_encrypt_tables_update(
+/*=========================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to
+						system variable */
+	void*				var_ptr,/*!< out: where the
+						formal string goes */
+	const void*			save)	/*!< in: immediate result
+						from check function */
+{
+	fil_crypt_set_encrypt_tables(*static_cast<const uint*>(save));
+
+
 }
 
 static SHOW_VAR innodb_status_variables_export[]= {
@@ -19167,7 +19188,10 @@ static MYSQL_SYSVAR_ENUM(encrypt_tables, srv_encrypt_tables,
 			 PLUGIN_VAR_OPCMDARG,
 			 "Enable encryption for tables. "
                          "Don't forget to enable --innodb-encrypt-log too",
-			 NULL, NULL, 0, &srv_encrypt_tables_typelib);
+			 NULL,
+			 innodb_encrypt_tables_update,
+			 0,
+			 &srv_encrypt_tables_typelib);
 
 static MYSQL_SYSVAR_UINT(encryption_threads, srv_n_fil_crypt_threads,
 			 PLUGIN_VAR_RQCMDARG,

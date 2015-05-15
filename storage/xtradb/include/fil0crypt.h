@@ -94,6 +94,7 @@ struct fil_space_crypt_struct
 	ib_mutex_t mutex;   // mutex protecting following variables
 	bool closing;	    // is tablespace being closed
 	fil_space_rotate_state_t rotate_state;
+	ulint space;
 
 	uint iv_length;	    // length of IV
 	byte iv[1];	    // IV-data
@@ -136,7 +137,7 @@ Get crypt data for a space*/
 UNIV_INTERN
 fil_space_crypt_t *
 fil_space_get_crypt_data(
-/*======================*/
+/*=====================*/
 	ulint space); /*!< in: tablespace id */
 
 /*********************************************************************
@@ -144,7 +145,7 @@ Set crypt data for a space*/
 UNIV_INTERN
 void
 fil_space_set_crypt_data(
-/*======================*/
+/*=====================*/
 	ulint space,                    /*!< in: tablespace id */
 	fil_space_crypt_t* crypt_data); /*!< in: crypt data to set */
 
@@ -153,7 +154,7 @@ Compare crypt data*/
 UNIV_INTERN
 int
 fil_space_crypt_compare(
-/*======================*/
+/*====================*/
 	const fil_space_crypt_t* crypt_data1,  /*!< in: crypt data */
 	const fil_space_crypt_t* crypt_data2); /*!< in: crypt data */
 
@@ -184,7 +185,7 @@ Clear crypt data from page 0 (used for import tablespace) */
 UNIV_INTERN
 void
 fil_space_clear_crypt_data(
-/*======================*/
+/*=======================*/
 	byte* page,    /*!< in: buffer page */
 	ulint offset); /*!< in: offset where crypt data is stored */
 
@@ -203,7 +204,7 @@ Check if extra buffer shall be allocated for decrypting after read */
 UNIV_INTERN
 bool
 fil_space_check_encryption_read(
-/*==============================*/
+/*============================*/
 	ulint space);          /*!< in: tablespace id */
 
 /*********************************************************************
@@ -211,7 +212,7 @@ Check if page shall be encrypted before write */
 UNIV_INTERN
 bool
 fil_space_check_encryption_write(
-/*==============================*/
+/*=============================*/
 	ulint space);          /*!< in: tablespace id */
 
 /*********************************************************************
@@ -219,7 +220,7 @@ Encrypt buffer page */
 UNIV_INTERN
 void
 fil_space_encrypt(
-/*===============*/
+/*==============*/
 	ulint space,          /*!< in: tablespace id */
 	ulint offset,         /*!< in: page no */
 	lsn_t lsn,            /*!< in: page lsn */
@@ -232,7 +233,7 @@ Decrypt buffer page */
 UNIV_INTERN
 void
 fil_space_decrypt(
-/*===============*/
+/*==============*/
 	ulint space,          /*!< in: tablespace id */
 	const byte* src_frame,/*!< in: page frame */
 	ulint page_size,      /*!< in: size of data to encrypt */
@@ -245,7 +246,7 @@ Decrypt buffer page
 UNIV_INTERN
 bool
 fil_space_decrypt(
-/*===============*/
+/*==============*/
 	fil_space_crypt_t* crypt_data, /*!< in: crypt data */
 	const byte* src_frame,/*!< in: page frame */
 	ulint page_size,      /*!< in: page size */
@@ -259,7 +260,7 @@ as it modifies srv_checksum_algorithm (temporarily)
 UNIV_INTERN
 bool
 fil_space_verify_crypt_checksum(
-/*===============*/
+/*============================*/
 	const byte* src_frame,/*!< in: page frame */
 	ulint zip_size);      /*!< in: size of data to encrypt */
 
@@ -294,7 +295,7 @@ Set rotate key age */
 UNIV_INTERN
 void
 fil_crypt_set_rotate_key_age(
-/*=====================*/
+/*=========================*/
 	uint rotate_age); /*!< in: requested rotate age */
 
 /*********************************************************************
@@ -302,7 +303,7 @@ Set rotation threads iops */
 UNIV_INTERN
 void
 fil_crypt_set_rotation_iops(
-/*=====================*/
+/*========================*/
 	uint iops); /*!< in: requested iops */
 
 /*********************************************************************
@@ -310,7 +311,7 @@ Mark a space as closing */
 UNIV_INTERN
 void
 fil_space_crypt_mark_space_closing(
-/*===============*/
+/*===============================*/
 	ulint space);          /*!< in: tablespace id */
 
 /*********************************************************************
@@ -318,7 +319,7 @@ Wait for crypt threads to stop accessing space */
 UNIV_INTERN
 void
 fil_space_crypt_close_tablespace(
-/*===============*/
+/*=============================*/
 	ulint space);          /*!< in: tablespace id */
 
 /** Struct for retreiving info about encryption */
@@ -340,7 +341,7 @@ Get crypt status for a space
 UNIV_INTERN
 int
 fil_space_crypt_get_status(
-/*==================*/
+/*=======================*/
 	ulint id,	                           /*!< in: space id */
 	struct fil_space_crypt_status_t * status); /*!< out: status  */
 
@@ -358,7 +359,7 @@ Get crypt rotation statistics */
 UNIV_INTERN
 void
 fil_crypt_total_stat(
-/*==================*/
+/*=================*/
 	fil_crypt_stat_t* stat); /*!< out: crypt stat */
 
 /** Struct for retreiving info about scrubbing */
@@ -379,9 +380,17 @@ Get scrub status for a space
 UNIV_INTERN
 int
 fil_space_get_scrub_status(
-/*==================*/
+/*=======================*/
 	ulint id,	                           /*!< in: space id */
 	struct fil_space_scrub_status_t * status); /*!< out: status  */
+
+/*********************************************************************
+Adjust encrypt tables */
+UNIV_INTERN
+void
+fil_crypt_set_encrypt_tables(
+/*=========================*/
+	uint val);	/*!< in: New iops setting */
 
 #ifndef UNIV_NONINL
 #include "fil0crypt.ic"
