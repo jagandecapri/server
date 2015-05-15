@@ -1128,11 +1128,15 @@ public:
   void print_value(String *);
   virtual void update_used_tables() {}
   virtual COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
-                                  bool link_item_fields)
+                                  bool link_item_fields,
+                                  COND_EQUAL **cond_equal_ref)
   {
     update_used_tables();
+    DBUG_ASSERT(!cond_equal_ref || !cond_equal_ref[0]);
     return this;
   }
+  virtual COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
+                                bool top_level);
   /*
     Checks whether the item is:
     - a simple equality (field=field_item or field=constant_item), or
@@ -2335,7 +2339,8 @@ public:
     update_table_bitmaps();
   }
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
-                                  bool link_item_fields)
+                          bool link_item_fields,
+                          COND_EQUAL **cond_equal_ref)
   {
     /*
       normilize_cond() replaced all conditions of type
@@ -2351,7 +2356,8 @@ public:
         SELECT * FROM t1 WHERE DEFAULT(a);
     */
     DBUG_ASSERT(type() != FIELD_ITEM);
-    return Item_ident::build_equal_items(thd, inherited, link_item_fields);
+    return Item_ident::build_equal_items(thd, inherited, link_item_fields,
+                                         cond_equal_ref);
   }
   bool is_result_field() { return false; }
   void set_result_field(Field *field) {}
@@ -3593,7 +3599,8 @@ public:
   table_map used_tables() const;		
   void update_used_tables(); 
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
-                                  bool link_item_fields)
+                          bool link_item_fields,
+                          COND_EQUAL **cond_equal_ref)
   {
     /*
       normilize_cond() replaced all conditions of type
@@ -3604,7 +3611,8 @@ public:
       already be replaced. No Item_ref referencing to Item_field are possible.
     */
     DBUG_ASSERT(real_type() != FIELD_ITEM);
-    return Item_ident::build_equal_items(thd, inherited, link_item_fields);
+    return Item_ident::build_equal_items(thd, inherited, link_item_fields,
+                                         cond_equal_ref);
   }
   bool const_item() const 
   {

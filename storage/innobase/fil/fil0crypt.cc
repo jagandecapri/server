@@ -107,6 +107,7 @@ UNIV_INTERN mysql_pfs_key_t fil_crypt_data_mutex_key;
 static bool
 fil_crypt_needs_rotation(
 /*=====================*/
+	ulint			space,			/*!< in: space */
 	uint			key_version,		/*!< in: Key version */
 	uint			latest_key_version,	/*!< in: Latest key version */
 	uint			rotate_key_age);	/*!< in: When to rotate */
@@ -235,7 +236,7 @@ fil_crypt_get_latest_key_version(
 {
 	uint rc = encryption_key_get_latest_version(crypt_data->key_id);
 
-	if (fil_crypt_needs_rotation(crypt_data->min_key_version,
+	if (fil_crypt_needs_rotation(crypt_data->space, crypt_data->min_key_version,
 				rc, srv_fil_crypt_rotate_key_age)) {
 		os_event_set(fil_crypt_threads_event);
 	}
@@ -414,6 +415,7 @@ fil_space_read_crypt_data(
 	crypt_data->key_id = key_id;
 	crypt_data->page0_offset = offset;
 	crypt_data->encryption = encryption;
+	crypt_data->space = space;
 	mutex_create(fil_crypt_data_mutex_key,
 		     &crypt_data->mutex, SYNC_NO_ORDER_CHECK);
 	crypt_data->iv_length = iv_length;
@@ -589,6 +591,7 @@ fil_parse_write_crypt_data(
 	crypt_data->page0_offset = offset;
 	crypt_data->min_key_version = min_key_version;
 	crypt_data->encryption = encryption;
+	crypt_data->space = space_id;
 	memcpy(crypt_data->iv, ptr, len);
 	ptr += len;
 
@@ -626,11 +629,12 @@ Check if page shall be encrypted before write
 UNIV_INTERN
 bool
 fil_space_check_encryption_write(
-/*==============================*/
+/*=============================*/
 	ulint space)          /*!< in: tablespace id */
 {
-	if (!srv_encrypt_tables)
+	if (!srv_encrypt_tables) {
 		return false;
+	}
 
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space);
 
@@ -785,7 +789,7 @@ Check if extra buffer shall be allocated for decrypting after read
 UNIV_INTERN
 bool
 fil_space_check_encryption_read(
-/*=============================*/
+/*============================*/
 	ulint space)          /*!< in: tablespace id */
 {
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space);
@@ -1033,12 +1037,14 @@ Check if a key needs rotation given a key_state
 static bool
 fil_crypt_needs_rotation(
 /*=====================*/
+	ulint			space,
 	uint			key_version,		/*!< in: Key version */
 	uint			latest_key_version,	/*!< in: Latest key version */
 	uint			rotate_key_age)		/*!< in: When to rotate */
 {
-	if (key_version == ENCRYPTION_KEY_VERSION_INVALID)
+	if (key_version == ENCRYPTION_KEY_VERSION_INVALID) {
 		return false;
+	}
 
 	if (key_version == 0 && latest_key_version != 0) {
 		/* this is rotation unencrypted => encrypted
@@ -1131,6 +1137,7 @@ fil_crypt_start_encrypting_space(
 	crypt_data->rotate_state.start_time = time(0);
 	crypt_data->rotate_state.starting = true;
 	crypt_data->rotate_state.active_threads = 1;
+	crypt_data->space = space;
 
 	mutex_enter(&crypt_data->mutex);
 	fil_space_set_crypt_data(space, crypt_data);
@@ -1251,6 +1258,7 @@ Check if space needs rotation given a key_state
 static
 bool
 fil_crypt_space_needs_rotation(
+/*===========================*/
 	uint			space,		/*!< in: FIL space id */
 	key_state_t*		key_state,	/*!< in: Key state */
 	bool*			recheck)	/*!< out: needs recheck ? */
@@ -1274,6 +1282,7 @@ fil_crypt_space_needs_rotation(
 		* space has no crypt data
 		*   start encrypting it...
 		*/
+
 		pending_op = fil_crypt_start_encrypting_space(space, recheck);
 
 		crypt_data = fil_space_get_crypt_data(space);
@@ -1289,7 +1298,7 @@ fil_crypt_space_needs_rotation(
 	mutex_enter(&crypt_data->mutex);
 
 	do {
-		if (crypt_data->encryption == FIL_SPACE_ENCRYPTION_OFF) {
+		if (crypt_data->encryption != FIL_SPACE_ENCRYPTION_DEFAULT) {
 			/* This space is unencrypted by user request */
 			break;
 		}
@@ -1316,6 +1325,7 @@ fil_crypt_space_needs_rotation(
 		}
 
 		bool need_key_rotation = fil_crypt_needs_rotation(
+			crypt_data->space,
 			crypt_data->min_key_version,
 			key_state->key_version, key_state->rotate_key_age);
 
@@ -1442,7 +1452,7 @@ used when inside a space */
 static
 void
 fil_crypt_realloc_iops(
-/*========================*/
+/*===================*/
 	rotate_thread_t *state)	/*!< in: Key rotation status */
 {
 	ut_a(state->allocated_iops > 0);
@@ -1535,7 +1545,7 @@ Return allocated iops to global */
 static
 void
 fil_crypt_return_iops(
-/*========================*/
+/*==================*/
 	rotate_thread_t *state)	/*!< in: Key rotation status */
 {
 	if (state->allocated_iops > 0) {
@@ -1588,6 +1598,7 @@ fil_crypt_find_space_to_rotate(
 	while (!state->should_shutdown() && state->space != ULINT_UNDEFINED) {
 
 		ulint space = state->space;
+
 		if (fil_crypt_space_needs_rotation(space, key_state, recheck)) {
 			ut_ad(key_state->key_id);
 			/* init state->min_key_version_found before
@@ -1623,6 +1634,13 @@ fil_crypt_start_rotate_space(
 
 	if (crypt_data->rotate_state.active_threads == 0) {
 		/* only first thread needs to init */
+		if (srv_encrypt_tables) {
+			crypt_data->type = CRYPT_SCHEME_1;
+		} else {
+			crypt_data->type = CRYPT_SCHEME_UNENCRYPTED;
+		}
+
+		crypt_data->space = space;
 		crypt_data->rotate_state.next_offset = 1; // skip page 0
 		/* no need to rotate beyond current max
 		* if space extends, it will be encrypted with newer version */
@@ -1732,6 +1750,7 @@ Get a page and compute sleep time
 static
 buf_block_t*
 fil_crypt_get_page_throttle_func(
+/*=============================*/
 	rotate_thread_t*	state,		/*!< in/out: Key rotation state */
 	ulint			space,		/*!< in: FIL space id */
 	uint 			zip_size,	/*!< in: compressed size if
@@ -1848,7 +1867,7 @@ Rotate one page */
 static
 void
 fil_crypt_rotate_page(
-/*===================*/
+/*==================*/
 	const key_state_t*	key_state,	/*!< in: Key state */
 	rotate_thread_t*	state)		/*!< in: Key rotation state */
 {
@@ -1887,7 +1906,7 @@ fil_crypt_rotate_page(
 		if (kv == 0 &&
 		    fil_crypt_is_page_uninitialized(frame, zip_size)) {
 			;
-		} else if (fil_crypt_needs_rotation(kv, key_state->key_version,
+		} else if (fil_crypt_needs_rotation(crypt_data->space, kv, key_state->key_version,
 						key_state->rotate_key_age)) {
 
 			/* page can be "fresh" i.e never written in case
@@ -2325,6 +2344,18 @@ fil_crypt_set_rotation_iops(
 	uint val)	/*!< in: New iops setting */
 {
 	srv_n_fil_crypt_iops = val;
+	os_event_set(fil_crypt_threads_event);
+}
+
+/*********************************************************************
+Adjust encrypt tables */
+UNIV_INTERN
+void
+fil_crypt_set_encrypt_tables(
+/*=========================*/
+	uint val)	/*!< in: New iops setting */
+{
+	srv_encrypt_tables = val;
 	os_event_set(fil_crypt_threads_event);
 }
 
